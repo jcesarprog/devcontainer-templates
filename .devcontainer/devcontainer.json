@@ -19,6 +19,8 @@
 			"upgradePackages": false
 		}
 	},
+	// Run on HOST before container is created - ensures .bash_aliases exists
+	"initializeCommand": "bash -c 'touch ${HOME}/.bash_aliases 2>/dev/null || true'",
 	// Forward dev server port (default: 3000)
 	"forwardPorts": [
 		3000
