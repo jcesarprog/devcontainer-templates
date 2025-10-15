@@ -7,6 +7,10 @@
 		"dockerfile": "Dockerfile",
 		"context": "."
 	},
+	// Set a meaningful container name in Docker
+	"runArgs": [
+		"--name=${localWorkspaceFolderBasename}-devcontainer"
+	],
 	// Features to add to the dev container. More info: https://containers.dev/features.
 	"features": {
 		"ghcr.io/devcontainers/features/common-utils:2": {
@@ -54,7 +58,9 @@
 				"ms-vscode.vscode-typescript-tslint-plugin",
 				"wix.vscode-import-cost",
 				"formulahendry.code-runner", // Code runner
-				"typescriptteam.native-preview" // Need For TS-GO
+				"typescriptteam.native-preview", // Need For TS-GO
+				"codezombiech.gitignore", // gitignore templates
+				"foxundermoon.shell-format" // Shell script formatter
 			],
 			"settings": {
 				// TS-GO experimental settings

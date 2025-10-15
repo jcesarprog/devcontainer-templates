@@ -11,6 +11,7 @@
 # - .deps: Docker volume containing node_modules and Bun cache
 # - .next: Next.js build output should be regenerated
 # - *.log: Log files are not needed in the image
+# - bun.lockb/bun.lock: Bun lockfiles (both old and new formats)
 # - coverage: Test coverage reports are not needed in the image
 
 **/node_modules
@@ -18,4 +19,5 @@
 .next
 *.log
 bun.lockb
+bun.lock
 coverage

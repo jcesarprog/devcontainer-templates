@@ -48,18 +48,44 @@ function info() {
 }
 
 function detect_package_manager(){
-    # Auto-detect package manager based on lockfiles
-    if [ -f "bun.lockb" ]; then
+    # Auto-detect package manager based on multiple indicators
+
+    # 1. Check package.json for explicit packageManager field (most reliable)
+    if [ -f "package.json" ]; then
+        # Extract packageManager field if it exists
+        PKG_MGR_FIELD=$(grep -o '"packageManager"[[:space:]]*:[[:space:]]*"[^"]*"' package.json 2>/dev/null | cut -d'"' -f4 | cut -d'@' -f1)
+        if [ -n "$PKG_MGR_FIELD" ]; then
+            echo "$PKG_MGR_FIELD"
+            return 0
+        fi
+    fi
+
+    # 2. Check for lockfiles (both old and new formats)
+    # Bun uses both bun.lockb (old) and bun.lock (new)
+    if [ -f "bun.lockb" ] || [ -f "bun.lock" ]; then
         echo "bun"
     elif [ -f "pnpm-lock.yaml" ]; then
         echo "pnpm"
+    elif [ -f "yarn.lock" ]; then
+        echo "yarn"
     elif [ -f "package-lock.json" ]; then
         echo "npm"
-    elif [ -f "deno.json" ] || [ -f "deno.jsonc" ]; then
+    elif [ -f "deno.json" ] || [ -f "deno.jsonc" ] || [ -f "deno.lock" ]; then
         echo "deno"
     elif [ -f "package.json" ]; then
-        # Default to npm if only package.json exists
-        echo "npm"
+        # 3. If package.json exists but no lockfile, check which package manager is available
+        if command -v bun &> /dev/null; then
+            echo "bun"
+        elif command -v pnpm &> /dev/null; then
+            echo "pnpm"
+        elif command -v yarn &> /dev/null; then
+            echo "yarn"
+        elif command -v npm &> /dev/null; then
+            echo "npm"
+        else
+            # Last resort: default to npm
+            echo "npm"
+        fi
     else
         echo "unknown"
     fi
@@ -101,6 +127,12 @@ function setup_workspace_dirs(){
             mkdir -p "$WORKSPACE_ROOT/node_modules/.cache-deps/npm"
             export npm_config_cache="$WORKSPACE_ROOT/node_modules/.cache-deps/npm"
             info "Configured for npm (traditional cache)"
+            ;;
+        yarn)
+            # yarn cache
+            mkdir -p "$WORKSPACE_ROOT/node_modules/.cache-deps/yarn"
+            export YARN_CACHE_FOLDER="$WORKSPACE_ROOT/node_modules/.cache-deps/yarn"
+            info "Configured for yarn (cache folder)"
             ;;
         deno)
             # Deno uses its own cache directory
@@ -148,6 +180,9 @@ function persist_cache_config(){
             ;;
         npm)
             echo "export npm_config_cache=\"$workspace_root/node_modules/.cache-deps/npm\"" >> ~/.bashrc
+            ;;
+        yarn)
+            echo "export YARN_CACHE_FOLDER=\"$workspace_root/node_modules/.cache-deps/yarn\"" >> ~/.bashrc
             ;;
         deno)
             echo "export DENO_DIR=\"$workspace_root/node_modules/.cache-deps/deno\"" >> ~/.bashrc
@@ -217,9 +252,17 @@ function install_deps(){
         # Determine lockfile based on package manager
         LOCKFILE=""
         case "$PKG_MANAGER" in
-            bun) LOCKFILE="bun.lockb" ;;
+            bun)
+                # Check for both old (bun.lockb) and new (bun.lock) formats
+                if [ -f "bun.lock" ]; then
+                    LOCKFILE="bun.lock"
+                elif [ -f "bun.lockb" ]; then
+                    LOCKFILE="bun.lockb"
+                fi
+                ;;
             pnpm) LOCKFILE="pnpm-lock.yaml" ;;
             npm) LOCKFILE="package-lock.json" ;;
+            yarn) LOCKFILE="yarn.lock" ;;
             deno) LOCKFILE="deno.lock" ;;
         esac
 
@@ -262,6 +305,19 @@ function install_deps(){
                 success "Dependencies installed successfully with npm"
             else
                 error "Failed to install dependencies with npm"
+                return 1
+            fi
+            ;;
+        yarn)
+            # Install yarn if not available
+            if ! command -v yarn &> /dev/null; then
+                info "Installing yarn..."
+                npm install -g yarn
+            fi
+            if yarn install; then
+                success "Dependencies installed successfully with yarn"
+            else
+                error "Failed to install dependencies with yarn"
                 return 1
             fi
             ;;
