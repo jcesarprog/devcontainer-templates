@@ -143,20 +143,35 @@ echo "📋 Copying devcontainer files from source workspace..."
 mkdir -p .devcontainer
 mkdir -p scripts/devcontainer
 
+# Enable dotglob to include hidden files in glob expansion
+shopt -s dotglob
+
 # Copy with verbose output to confirm what's being synced
 if [ -d "$SOURCE_WORKSPACE/.devcontainer" ]; then
-    cp -r "$SOURCE_WORKSPACE/.devcontainer"/* .devcontainer/
-    echo "   ✓ Copied .devcontainer/"
+    # Using a loop to copy all files including hidden ones
+    for file in "$SOURCE_WORKSPACE/.devcontainer"/*; do
+        if [ -e "$file" ]; then
+            cp -r "$file" .devcontainer/
+        fi
+    done
+    echo "   ✓ Copied .devcontainer/ (including hidden files)"
 else
     echo "   ⚠ Warning: .devcontainer/ not found in source"
 fi
 
 if [ -d "$SOURCE_WORKSPACE/scripts/devcontainer" ]; then
-    cp -r "$SOURCE_WORKSPACE/scripts/devcontainer"/* scripts/devcontainer/
+    for file in "$SOURCE_WORKSPACE/scripts/devcontainer"/*; do
+        if [ -e "$file" ]; then
+            cp -r "$file" scripts/devcontainer/
+        fi
+    done
     echo "   ✓ Copied scripts/devcontainer/"
 else
     echo "   ⚠ Warning: scripts/devcontainer/ not found in source"
 fi
+
+# Disable dotglob to avoid affecting other operations
+shopt -u dotglob
 
 # Create .gitignore with helpful defaults
 echo "📝 Creating .gitignore for template..."
