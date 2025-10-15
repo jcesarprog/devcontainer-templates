@@ -1,8 +1,34 @@
 #!/usr/bin/env bash
 
-# Post-create container setup script
+# ============================================================================
+# Post-create Container Setup Script
+# ============================================================================
+#
 # This script is IDEMPOTENT - safe to run multiple times without side effects.
 # Each function checks if its configuration is already applied before making changes.
+#
+# FEATURES:
+#   - Auto-detects package manager (bun, pnpm, npm, deno)
+#   - Configures optimized caching for each package manager
+#   - Sets up Docker access for the dev user
+#   - Installs dependencies automatically
+#   - Configures useful shell aliases
+#
+# PACKAGE MANAGER SUPPORT:
+#   Bun   - Detects bun.lockb, uses hardlink-optimized cache
+#   pnpm  - Detects pnpm-lock.yaml, uses content-addressable store
+#   npm   - Detects package-lock.json, uses traditional cache
+#   Deno  - Detects deno.json/deno.jsonc, uses module cache
+#
+# CACHE LOCATIONS:
+#   All caches are stored in node_modules/.cache-deps/<package-manager>
+#   Both packages and caches are in the same Docker volume for:
+#     - Persistence across container rebuilds
+#     - Better performance than bind mounts
+#     - Hardlink support - same filesystem enables hardlinks (bun, pnpm)
+#     - Single volume simplicity
+#
+# ============================================================================
 
 # Color output utility functions
 function success() {
@@ -21,22 +47,114 @@ function info() {
     echo -e "\033[0;36mℹ $1\033[0m"
 }
 
+function detect_package_manager(){
+    # Auto-detect package manager based on lockfiles
+    if [ -f "bun.lockb" ]; then
+        echo "bun"
+    elif [ -f "pnpm-lock.yaml" ]; then
+        echo "pnpm"
+    elif [ -f "package-lock.json" ]; then
+        echo "npm"
+    elif [ -f "deno.json" ] || [ -f "deno.jsonc" ]; then
+        echo "deno"
+    elif [ -f "package.json" ]; then
+        # Default to npm if only package.json exists
+        echo "npm"
+    else
+        echo "unknown"
+    fi
+}
+
 function setup_workspace_dirs(){
-    # Check if node_modules is mounted (volume mount point)
-    if [ -d /workspaces/nextjs-test/node_modules ]; then
-        # Fix ownership of the Docker volume
-        sudo chown -R dev:dev /workspaces/nextjs-test/node_modules 2>/dev/null || true
+    # Detect package manager
+    PKG_MANAGER=$(detect_package_manager)
 
-        # Create .bun-cache directory inside node_modules (same filesystem = hardlinks work!)
-        mkdir -p /workspaces/nextjs-test/node_modules/.bun-cache
+    # Get the workspace root (parent directory of the script)
+    WORKSPACE_ROOT="$(cd "$(dirname "$(dirname "$(dirname "${BASH_SOURCE[0]}")")")" && pwd)"
 
-        info "Workspace directories already set up correctly"
-        return 0
+    # Fix ownership of the Docker volume
+    if [ -d "$WORKSPACE_ROOT/node_modules" ]; then
+        sudo chown -R dev:dev "$WORKSPACE_ROOT/node_modules" 2>/dev/null || true
     fi
 
-    # This shouldn't happen if volume is mounted correctly
-    warning "node_modules volume not mounted - check devcontainer.json"
-    return 1
+    # Create cache directory structure inside node_modules
+    mkdir -p "$WORKSPACE_ROOT/node_modules/.cache-deps"
+
+    # Configure package manager specific cache locations
+    # All caches are inside node_modules/.cache-deps/ for hardlink efficiency
+    case "$PKG_MANAGER" in
+        bun)
+            # Bun benefits from cache on same filesystem as node_modules for hardlinks
+            mkdir -p "$WORKSPACE_ROOT/node_modules/.cache-deps/bun"
+            export BUN_INSTALL_CACHE_DIR="$WORKSPACE_ROOT/node_modules/.cache-deps/bun"
+            info "Configured for Bun (hardlink-optimized cache)"
+            ;;
+        pnpm)
+            # pnpm uses a content-addressable store, benefits from hardlinks
+            mkdir -p "$WORKSPACE_ROOT/node_modules/.cache-deps/pnpm"
+            export PNPM_HOME="$WORKSPACE_ROOT/node_modules/.cache-deps/pnpm"
+            export npm_config_store_dir="$WORKSPACE_ROOT/node_modules/.cache-deps/pnpm/store"
+            info "Configured for pnpm (content-addressable store with hardlinks)"
+            ;;
+        npm)
+            # npm traditional cache
+            mkdir -p "$WORKSPACE_ROOT/node_modules/.cache-deps/npm"
+            export npm_config_cache="$WORKSPACE_ROOT/node_modules/.cache-deps/npm"
+            info "Configured for npm (traditional cache)"
+            ;;
+        deno)
+            # Deno uses its own cache directory
+            mkdir -p "$WORKSPACE_ROOT/node_modules/.cache-deps/deno"
+            export DENO_DIR="$WORKSPACE_ROOT/node_modules/.cache-deps/deno"
+            info "Configured for Deno (module cache)"
+            ;;
+        *)
+            warning "Package manager not detected, using default npm configuration"
+            mkdir -p "$WORKSPACE_ROOT/node_modules/.cache-deps/npm"
+            export npm_config_cache="$WORKSPACE_ROOT/node_modules/.cache-deps/npm"
+            ;;
+    esac
+
+    success "Workspace directories configured for: $PKG_MANAGER"
+
+    # Persist cache configuration to .bashrc for future sessions
+    persist_cache_config "$PKG_MANAGER" "$WORKSPACE_ROOT"
+
+    return 0
+}
+
+function persist_cache_config(){
+    local pkg_manager="$1"
+    local workspace_root="$2"
+    local config_marker="# Package manager cache configuration (auto-generated)"
+
+    # Remove old configuration if exists
+    if grep -q "$config_marker" ~/.bashrc 2>/dev/null; then
+        sed -i "/$config_marker/,+10d" ~/.bashrc
+    fi
+
+    # Add new configuration
+    echo "" >> ~/.bashrc
+    echo "$config_marker" >> ~/.bashrc
+
+    case "$pkg_manager" in
+        bun)
+            echo "export BUN_INSTALL_CACHE_DIR=\"$workspace_root/node_modules/.cache-deps/bun\"" >> ~/.bashrc
+            ;;
+        pnpm)
+            echo "export PNPM_HOME=\"$workspace_root/node_modules/.cache-deps/pnpm\"" >> ~/.bashrc
+            echo "export npm_config_store_dir=\"$workspace_root/node_modules/.cache-deps/pnpm/store\"" >> ~/.bashrc
+            echo 'export PATH="$PNPM_HOME:$PATH"' >> ~/.bashrc
+            ;;
+        npm)
+            echo "export npm_config_cache=\"$workspace_root/node_modules/.cache-deps/npm\"" >> ~/.bashrc
+            ;;
+        deno)
+            echo "export DENO_DIR=\"$workspace_root/node_modules/.cache-deps/deno\"" >> ~/.bashrc
+            ;;
+    esac
+
+    info "Cache configuration persisted to ~/.bashrc"
 }
 
 function setup_docker_access(){
@@ -83,15 +201,30 @@ function setup_docker_access(){
 }
 
 function install_deps(){
-    # Configure Bun to use cache inside node_modules volume
-    # Both cache and packages are in the same volume = hardlinks work!
-    export BUN_INSTALL_CACHE_DIR=/workspaces/nextjs-test/node_modules/.bun-cache
+    # Detect package manager
+    PKG_MANAGER=$(detect_package_manager)
 
-    # Check if dependencies are already installed and up to date
-    if [ -d /workspaces/nextjs-test/node_modules/.bun-cache ] || \
-       [ -n "$(ls -A /workspaces/nextjs-test/node_modules 2>/dev/null | grep -v '^\.bun-cache$')" ]; then
+    if [ "$PKG_MANAGER" = "unknown" ]; then
+        info "No package.json or lock file found, skipping dependency installation"
+        return 0
+    fi
+
+    # Get the workspace root (parent directory of the script)
+    WORKSPACE_ROOT="$(cd "$(dirname "$(dirname "$(dirname "${BASH_SOURCE[0]}")")")" && pwd)"
+
+    # Check if dependencies are already installed
+    if [ -n "$(ls -A "$WORKSPACE_ROOT/node_modules" 2>/dev/null | grep -v '^\.cache-deps$')" ]; then
+        # Determine lockfile based on package manager
+        LOCKFILE=""
+        case "$PKG_MANAGER" in
+            bun) LOCKFILE="bun.lockb" ;;
+            pnpm) LOCKFILE="pnpm-lock.yaml" ;;
+            npm) LOCKFILE="package-lock.json" ;;
+            deno) LOCKFILE="deno.lock" ;;
+        esac
+
         # Check if lockfile is newer than node_modules (meaning deps need update)
-        if [ -f bun.lockb ] && [ bun.lockb -nt /workspaces/nextjs-test/node_modules ]; then
+        if [ -n "$LOCKFILE" ] && [ -f "$LOCKFILE" ] && [ "$LOCKFILE" -nt "$WORKSPACE_ROOT/node_modules" ]; then
             info "Dependencies outdated, reinstalling..."
         else
             info "Dependencies already installed and up to date"
@@ -99,13 +232,56 @@ function install_deps(){
         fi
     fi
 
-    # Install dependencies with Bun
-    if bun install; then
-        success "Dependencies installed successfully with Bun (using hardlinks)"
-    else
-        error "Failed to install dependencies"
-        return 1
-    fi
+    # Install dependencies with the appropriate package manager
+    info "Installing dependencies with $PKG_MANAGER..."
+
+    case "$PKG_MANAGER" in
+        bun)
+            if bun install; then
+                success "Dependencies installed successfully with Bun (using hardlinks)"
+            else
+                error "Failed to install dependencies with Bun"
+                return 1
+            fi
+            ;;
+        pnpm)
+            # Install pnpm if not available
+            if ! command -v pnpm &> /dev/null; then
+                info "Installing pnpm..."
+                npm install -g pnpm
+            fi
+            if pnpm install; then
+                success "Dependencies installed successfully with pnpm (content-addressable store)"
+            else
+                error "Failed to install dependencies with pnpm"
+                return 1
+            fi
+            ;;
+        npm)
+            if npm install; then
+                success "Dependencies installed successfully with npm"
+            else
+                error "Failed to install dependencies with npm"
+                return 1
+            fi
+            ;;
+        deno)
+            if deno cache --reload main.ts 2>/dev/null || deno cache --reload mod.ts 2>/dev/null; then
+                success "Dependencies cached successfully with Deno"
+            else
+                info "Deno project detected, dependencies will be cached on first run"
+            fi
+            ;;
+        *)
+            warning "Unknown package manager, attempting npm install..."
+            if npm install; then
+                success "Dependencies installed with npm (fallback)"
+            else
+                error "Failed to install dependencies"
+                return 1
+            fi
+            ;;
+    esac
 }
 
 function activate_aliases(){

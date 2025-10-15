@@ -1,0 +1,12 @@
+# DevContainer cache directory (automatically managed)
+# Note: This is typically already covered by node_modules/ ignore,
+# but we're explicit here for clarity
+node_modules/.cache-deps/
+
+# Common patterns you might want to add to your project:
+# node_modules/
+# .env
+# .env.local
+# dist/
+# build/
+# .DS_Store

@@ -30,7 +30,9 @@
 	"mounts": [
 		// Mount bash aliases as binded volume
 		"source=${localEnv:HOME}${localEnv:USERPROFILE}/.bash_aliases,target=/home/dev/.bash_aliases,type=bind,consistency=cached",
-		// Mount Docker volume (name based on folder) directly at node_modules (Turbopack-friendly, hardlinks work!)
+		// Mount Docker volume for dependencies and caches (supports bun, npm, pnpm, deno)
+		// Single volume for both node_modules and caches enables hardlinks (bun, pnpm)
+		// All package manager caches are stored in node_modules/.cache-deps/
 		"source=${localWorkspaceFolderBasename}-deps,target=${containerWorkspaceFolder}/node_modules,type=volume",
 		// Mount Docker socket from host to access host's Docker daemon
 		"source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind"

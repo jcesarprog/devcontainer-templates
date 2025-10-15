@@ -78,14 +78,31 @@ else
     REMOTE_REPO="${2:-$DEFAULT_REPO}"
 fi
 
+# Detect source workspace directory FIRST (before changing directories)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SOURCE_WORKSPACE="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
 TEMP_DIR="/tmp/devcontainer-repo-$$"
 
 echo "🔄 Syncing devcontainer template to repository..."
 echo "   Remote: $REMOTE_REPO"
 echo "   Template Branch: $TEMPLATE_BRANCH"
+echo "   Source: $SOURCE_WORKSPACE"
 echo ""
 
+# Verify source directories exist
+if [ ! -d "$SOURCE_WORKSPACE/.devcontainer" ]; then
+    echo "❌ Error: .devcontainer directory not found in $SOURCE_WORKSPACE"
+    exit 1
+fi
+
+if [ ! -d "$SOURCE_WORKSPACE/scripts/devcontainer" ]; then
+    echo "❌ Error: scripts/devcontainer directory not found in $SOURCE_WORKSPACE"
+    exit 1
+fi
+
 # Create temporary directory
+rm -rf "$TEMP_DIR"
 mkdir -p "$TEMP_DIR"
 cd "$TEMP_DIR"
 
@@ -104,21 +121,59 @@ fi
 # Check out or create the template branch
 echo "🌿 Switching to template branch: $TEMPLATE_BRANCH"
 if $REPO_EXISTS && git ls-remote --exit-code --heads origin "$TEMPLATE_BRANCH" &>/dev/null; then
+    echo "   Branch exists, checking out and pulling latest..."
     git checkout "$TEMPLATE_BRANCH"
+    git pull origin "$TEMPLATE_BRANCH" || echo "   No changes to pull"
+
+    # Clean all tracked files in the branch to ensure fresh sync
+    echo "   Cleaning existing files for fresh sync..."
+    git rm -rf . 2>/dev/null || true
 else
+    echo "   Creating new orphan branch..."
     # Create orphan branch (no shared history with other templates)
     git checkout --orphan "$TEMPLATE_BRANCH"
     git rm -rf . 2>/dev/null || true
 fi
 
+# Ensure clean state - remove any untracked files too
+rm -rf .devcontainer scripts README.md .gitignore 2>/dev/null || true
+
 # Copy the devcontainer files to the root of this branch
-echo "📋 Copying devcontainer files to branch root..."
-rm -rf .devcontainer scripts README.md 2>/dev/null || true
+echo "📋 Copying devcontainer files from source workspace..."
 mkdir -p .devcontainer
 mkdir -p scripts/devcontainer
 
-cp -r /workspaces/nextjs-test/.devcontainer/* .devcontainer/
-cp -r /workspaces/nextjs-test/scripts/devcontainer/* scripts/devcontainer/
+# Copy with verbose output to confirm what's being synced
+if [ -d "$SOURCE_WORKSPACE/.devcontainer" ]; then
+    cp -r "$SOURCE_WORKSPACE/.devcontainer"/* .devcontainer/
+    echo "   ✓ Copied .devcontainer/"
+else
+    echo "   ⚠ Warning: .devcontainer/ not found in source"
+fi
+
+if [ -d "$SOURCE_WORKSPACE/scripts/devcontainer" ]; then
+    cp -r "$SOURCE_WORKSPACE/scripts/devcontainer"/* scripts/devcontainer/
+    echo "   ✓ Copied scripts/devcontainer/"
+else
+    echo "   ⚠ Warning: scripts/devcontainer/ not found in source"
+fi
+
+# Create .gitignore with helpful defaults
+echo "📝 Creating .gitignore for template..."
+cat > .gitignore <<'GITIGNORE'
+# DevContainer cache directory (automatically managed)
+# Note: This is typically already covered by node_modules/ ignore,
+# but we're explicit here for clarity
+node_modules/.cache-deps/
+
+# Common patterns you might want to add to your project:
+# node_modules/
+# .env
+# .env.local
+# dist/
+# build/
+# .DS_Store
+GITIGNORE
 
 # Create template-specific README
 TEMPLATE_NAME_PRETTY=$(echo "$TEMPLATE_BRANCH" | sed 's/-/ /g' | sed 's/\b\(.\)/\u\1/g')
@@ -187,10 +242,20 @@ TEMPLATE_UPDATED=false
 if git diff --cached --quiet; then
     echo "✅ No changes to commit on template branch"
 else
-    git commit -m "Update $TEMPLATE_BRANCH template ($(date '+%Y-%m-%d %H:%M:%S'))"
+    # Generate detailed commit message
+    CHANGED_FILES=$(git diff --cached --name-only | tr '\n' ', ' | sed 's/,$//')
+    COMMIT_MSG="Update $TEMPLATE_BRANCH template
+
+Updated: $CHANGED_FILES
+
+Synced from: $SOURCE_WORKSPACE
+Timestamp: $(date '+%Y-%m-%d %H:%M:%S')"
+
+    git commit -m "$COMMIT_MSG"
     echo "📤 Pushing template branch..."
     git push -u origin "$TEMPLATE_BRANCH"
     echo "✅ Template branch pushed successfully"
+    echo "   Files updated: $CHANGED_FILES"
     TEMPLATE_UPDATED=true
 fi
 
@@ -336,11 +401,20 @@ else
 fi
 
 # Cleanup
-cd /workspaces/nextjs-test
+cd "$SOURCE_WORKSPACE"
 rm -rf "$TEMP_DIR"
 
 echo ""
 echo "🎉 Done! Template '$TEMPLATE_BRANCH' is synced."
 echo "📚 View all templates: $REMOTE_REPO"
 echo "🌿 View this template: $REMOTE_REPO/tree/$TEMPLATE_BRANCH"
+echo ""
+echo "💡 Next steps:"
+echo "   - Check the template branch to verify changes"
+echo "   - The main branch index has been updated automatically"
+if $TEMPLATE_UPDATED; then
+    echo "   - ✅ Template was updated with new changes"
+else
+    echo "   - ℹ️  No changes detected (template is up to date)"
+fi
 
