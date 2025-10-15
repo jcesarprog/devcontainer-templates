@@ -1,0 +1,23 @@
+# .dockerignore
+
+# This file tells Docker which files/directories to ignore when copying context during the image build process (via COPY or ADD commands in Dockerfile).
+
+# CONTEXT: For devcontainers, this file is primarily useful if you're copying files into the image during build. Since our devcontainer mounts the workspace as a volume (not copying files), this file has minimal impact on our setup.
+
+# However, it's still good practice to exclude build artifacts and dependencies that should be regenerated in the container environment.
+
+# WHY THESE ENTRIES:
+# - node_modules: Dependencies should be installed fresh in the container
+# - .cache-deps: Docker volume containing node_modules and Deno cache
+# - .next: Next.js build output should be regenerated
+# - *.log: Log files are not needed in the image
+# - deno.lock: Deno lockfile (will be regenerated)
+# - .deno_cache: Deno cache directory
+# - coverage: Test coverage reports are not needed in the image
+
+**/node_modules
+.cache-deps
+.deno_cache
+.next
+*.log
+coverage

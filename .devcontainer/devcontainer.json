@@ -1,0 +1,129 @@
+// For format details, see https://aka.ms/devcontainer.json. For config options, see the
+// README at: https://github.com/devcontainers/templates/tree/main/src/typescript-node
+{
+	"name": "${localWorkspaceFolderBasename} Dev Container",
+	// Use your custom Dockerfile
+	"build": {
+		"dockerfile": "Dockerfile",
+		"context": "."
+	},
+	// Set a meaningful container name in Docker
+	"runArgs": [
+		"--name=${localWorkspaceFolderBasename}-devcontainer"
+	],
+	// Features to add to the dev container. More info: https://containers.dev/features.
+	"features": {
+		"ghcr.io/devcontainers/features/common-utils:2": {
+			"installZsh": false,
+			"installOhMyZsh": false,
+			"upgradePackages": false
+		}
+	},
+	// Run on HOST before container is created - ensures .bash_aliases exists
+	"initializeCommand": "bash -c 'touch ${HOME}/.bash_aliases 2>/dev/null || true'",
+	// Forward dev server port (default: 3000)
+	"forwardPorts": [
+		3000
+	],
+	"portsAttributes": {
+		"3000": {
+			"label": "${localWorkspaceFolderBasename} Dev Server",
+			"onAutoForward": "notify"
+		}
+	},
+	// Install dependencies after container is created
+	"postCreateCommand": "bash scripts/devcontainer/postCreateContainer.sh",
+	"mounts": [
+		// Mount bash aliases as binded volume
+		"source=${localEnv:HOME}${localEnv:USERPROFILE}/.bash_aliases,target=/home/dev/.bash_aliases,type=bind,consistency=cached",
+		// Mount Docker volume for dependencies and caches (supports bun, npm, pnpm, deno)
+		// Single volume for both node_modules and caches enables hardlinks (bun, pnpm)
+		// All package manager caches are stored in node_modules/.cache-deps/
+		"source=${localWorkspaceFolderBasename}-deps,target=${containerWorkspaceFolder}/node_modules,type=volume",
+		// Mount Docker socket from host to access host's Docker daemon
+		"source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind"
+	],
+	// Configure tool-specific properties
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"denoland.vscode-deno", // Deno extension - MUST HAVE
+				"dbaeumer.vscode-eslint",
+				"bradlc.vscode-tailwindcss",
+				"esbenp.prettier-vscode",
+				"azuretools.vscode-docker",
+				"ms-azuretools.vscode-docker",
+				"redhat.vscode-yaml", // YAML language support
+				"oderwat.indent-rainbow", // Optional: colored indent guides
+				// TS related
+				"fill-labs.dependi",
+				"yoavbls.pretty-ts-errors",
+				"wix.vscode-import-cost",
+				"formulahendry.code-runner", // Code runner
+				"codezombiech.gitignore", // gitignore templates
+				"foxundermoon.shell-format" // Shell script formatter
+			],
+			"settings": {
+				// Deno settings - CRITICAL for Deno to work in VS Code
+				"deno.enable": true,
+				"deno.lint": true,
+				"deno.unstable": true,
+				"deno.cache": ".deno_cache",
+				// Terminal settings - use bash by default
+				"terminal.integrated.defaultProfile.linux": "bash",
+				"terminal.integrated.profiles.linux": {
+					"bash": {
+						"path": "/bin/bash",
+						"icon": "terminal-bash"
+					}
+				},
+				// Editor settings
+				"editor.formatOnSave": true,
+				"editor.defaultFormatter": "esbenp.prettier-vscode",
+				"editor.codeActionsOnSave": {
+					"source.fixAll.eslint": "explicit"
+				},
+				// Indentation guides - colored thick lines
+				"editor.guides.indentation": true,
+				"editor.guides.highlightActiveIndentation": true,
+				"editor.guides.bracketPairs": "active",
+				// Enhanced indent rainbow (if extension is installed)
+				"indentRainbow.colors": [
+					"rgba(255,255,64,0.07)",
+					"rgba(127,255,127,0.07)",
+					"rgba(255,127,255,0.07)",
+					"rgba(79,236,236,0.07)"
+				],
+				"indentRainbow.indicatorStyle": "light",
+				"indentRainbow.lightIndicatorStyleLineWidth": 2,
+				// YAML specific settings
+				"yaml.format.enable": true,
+				"yaml.format.singleQuote": false,
+				"yaml.format.bracketSpacing": true,
+				"yaml.validate": true,
+				"yaml.hover": true,
+				"yaml.completion": true,
+				// File associations
+				"[yaml]": {
+					"editor.insertSpaces": true,
+					"editor.tabSize": 2,
+					"editor.autoIndent": "advanced",
+					"editor.quickSuggestions": {
+						"other": true,
+						"comments": false,
+						"strings": true
+					}
+				},
+				// Docker Compose YAML schema
+				"yaml.schemas": {
+					"https://raw.githubusercontent.com/compose-spec/compose-spec/master/schema/compose-spec.json": [
+						"docker-compose*.yml",
+						"docker-compose*.yaml"
+					]
+				}
+			}
+		}
+	},
+	// Use dev user (non-root)
+	"remoteUser": "dev"
+}
