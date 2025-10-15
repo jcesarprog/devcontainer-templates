@@ -4,6 +4,19 @@ This repository contains various devcontainer configurations, each in its own br
 
 ## 📦 Available Templates
 
+### 🔹 [Next15 Deno](https://github.com/jcesarprog/devcontainer-templates.git/tree/next15-deno)
+
+```bash
+# Clone this template
+git clone -b next15-deno --single-branch https://github.com/jcesarprog/devcontainer-templates.git your-project-name
+
+# Or copy to existing project
+git clone -b next15-deno --depth=1 https://github.com/jcesarprog/devcontainer-templates.git temp-devcontainer
+cp -r temp-devcontainer/.devcontainer .
+cp -r temp-devcontainer/scripts .
+rm -rf temp-devcontainer
+```
+
 ### 🔹 [Nextjs15 Bun](https://github.com/jcesarprog/devcontainer-templates.git/tree/nextjs15-bun)
 
 ```bash
@@ -109,5 +122,5 @@ Each template branch contains:
 
 ## 📅 Last Updated
 
-2025-10-15 13:17:12
+2025-10-15 14:59:43
 
