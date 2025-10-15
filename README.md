@@ -43,20 +43,6 @@ cp -r temp-devcontainer/scripts .
 rm -rf temp-devcontainer
 ```
 
-### 🔹 [Whitesource/Configure](https://github.com/jcesarprog/devcontainer-templates.git/tree/whitesource/configure)
-
-```bash
-# Clone this template
-git clone -b whitesource/configure --single-branch https://github.com/jcesarprog/devcontainer-templates.git your-project-name
-
-# Or copy to existing project
-git clone -b whitesource/configure --depth=1 https://github.com/jcesarprog/devcontainer-templates.git temp-devcontainer
-cp -r temp-devcontainer/.devcontainer .
-cp -r temp-devcontainer/scripts .
-rm -rf temp-devcontainer
-```
-
-
 ## 🚀 How to Use a Template
 
 ### Method 1: Clone Template Branch Directly (Recommended for new projects)
