@@ -4,7 +4,7 @@ This repository contains various devcontainer configurations, each in its own br
 
 ## 📦 Available Templates
 
-### 🔹 [Next15 Deno](https://github.com/jcesarprog/devcontainer-templates.git/tree/next15-deno)
+### 🔹 [Next15 Deno](https://github.com/jcesarprog/devcontainer-templates/tree/next15-deno?tab=readme-ov-file)
 
 ```bash
 # Clone this template
@@ -17,7 +17,7 @@ cp -r temp-devcontainer/scripts .
 rm -rf temp-devcontainer
 ```
 
-### 🔹 [Nextjs15 Bun](https://github.com/jcesarprog/devcontainer-templates.git/tree/nextjs15-bun)
+### 🔹 [Nextjs15 Bun](https://github.com/jcesarprog/devcontainer-templates/tree/nextjs15-bun)
 
 ```bash
 # Clone this template
@@ -30,7 +30,7 @@ cp -r temp-devcontainer/scripts .
 rm -rf temp-devcontainer
 ```
 
-### 🔹 [Nextjs15 Pnpm](https://github.com/jcesarprog/devcontainer-templates.git/tree/nextjs15-pnpm)
+### 🔹 [Nextjs15 Pnpm](https://github.com/jcesarprog/devcontainer-templates/tree/nextjs15-pnpm)
 
 ```bash
 # Clone this template
